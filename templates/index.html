@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Threat Detection — Upload</title>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;600;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0c0f;
+      --panel: #111418;
+      --border: #1e2530;
+      --accent: #00e5ff;
+      --danger: #ff2d55;
+      --text: #c8d6e5;
+      --muted: #4a5568;
+      --mono: 'Share Tech Mono', monospace;
+      --sans: 'Barlow', sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+
+    /* Scanline effect */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0,229,255,0.015) 2px,
+        rgba(0,229,255,0.015) 4px
+      );
+      pointer-events: none;
+      z-index: 100;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 3rem;
+    }
+
+    .system-tag {
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      color: var(--accent);
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      margin-bottom: 0.5rem;
+    }
+
+    h1 {
+      font-size: 2.8rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: #fff;
+    }
+
+    h1 span { color: var(--danger); }
+
+    .subtitle {
+      font-size: 0.9rem;
+      color: var(--muted);
+      font-weight: 300;
+      margin-top: 0.4rem;
+      letter-spacing: 0.05em;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 2.5rem;
+      width: 100%;
+      max-width: 520px;
+      position: relative;
+    }
+
+    /* corner decoration */
+    .card::before, .card::after {
+      content: '';
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      border-color: var(--accent);
+      border-style: solid;
+    }
+    .card::before { top: -1px; left: -1px; border-width: 2px 0 0 2px; }
+    .card::after  { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; }
+
+    .drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: 4px;
+      padding: 3rem 2rem;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      position: relative;
+    }
+
+    .drop-zone:hover,
+    .drop-zone.dragover {
+      border-color: var(--accent);
+      background: rgba(0,229,255,0.04);
+    }
+
+    .drop-icon {
+      font-size: 2.5rem;
+      margin-bottom: 1rem;
+      opacity: 0.6;
+    }
+
+    .drop-label {
+      font-size: 0.95rem;
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    .drop-sub {
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-top: 0.3rem;
+      font-family: var(--mono);
+    }
+
+    /* Hidden file input overlays the drop zone */
+    #fileInput {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      cursor: pointer;
+    }
+
+    .file-selected {
+      margin-top: 1rem;
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      color: var(--accent);
+      text-align: center;
+      min-height: 1.2em;
+    }
+
+    .btn-upload {
+      margin-top: 1.5rem;
+      width: 100%;
+      padding: 0.9rem;
+      background: var(--accent);
+      color: #000;
+      border: none;
+      border-radius: 3px;
+      font-family: var(--mono);
+      font-size: 0.85rem;
+      letter-spacing: 0.15em;
+      font-weight: 700;
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: opacity 0.2s, transform 0.1s;
+    }
+
+    .btn-upload:hover { opacity: 0.85; }
+    .btn-upload:active { transform: scale(0.99); }
+    .btn-upload:disabled { opacity: 0.3; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="system-tag">// AI Surveillance System v1.0</div>
+    <h1>Threat <span>Detection</span></h1>
+    <p class="subtitle">Upload a video to begin multi-model analysis</p>
+  </header>
+
+  <div class="card">
+    <form action="/upload" method="POST" enctype="multipart/form-data" id="uploadForm">
+      <div class="drop-zone" id="dropZone">
+        <input type="file" name="video" id="fileInput" accept="video/*" required>
+        <div class="drop-icon">🎬</div>
+        <div class="drop-label">Drop video file here</div>
+        <div class="drop-sub">or click to browse</div>
+      </div>
+      <div class="file-selected" id="fileLabel">No file selected</div>
+      <button class="btn-upload" type="submit" id="uploadBtn" disabled>
+        → Upload &amp; Continue
+      </button>
+    </form>
+  </div>
+
+  <script>
+    const input    = document.getElementById('fileInput');
+    const label    = document.getElementById('fileLabel');
+    const btn      = document.getElementById('uploadBtn');
+    const dropZone = document.getElementById('dropZone');
+
+    input.addEventListener('change', () => {
+      if (input.files.length > 0) {
+        label.textContent = '✓ ' + input.files[0].name;
+        btn.disabled = false;
+      }
+    });
+
+    // Drag visual feedback
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', () => dropZone.classList.remove('dragover'));
+  </script>
+
+</body>
+</html>

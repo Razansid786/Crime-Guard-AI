@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Threat Detection — Results</title>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;600;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0c0f;
+      --panel: #111418;
+      --border: #1e2530;
+      --accent: #00e5ff;
+      --danger: #ff2d55;
+      --warn: #ffb400;
+      --text: #c8d6e5;
+      --muted: #4a5568;
+      --mono: 'Share Tech Mono', monospace;
+      --sans: 'Barlow', sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      padding: 2.5rem 2rem;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg, transparent, transparent 2px,
+        rgba(0,229,255,0.015) 2px, rgba(0,229,255,0.015) 4px
+      );
+      pointer-events: none;
+      z-index: 100;
+    }
+
+    /* ── Header ── */
+    header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin-bottom: 2.5rem;
+      padding-bottom: 1.2rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .header-left .system-tag {
+      font-family: var(--mono);
+      font-size: 0.65rem;
+      color: var(--accent);
+      letter-spacing: 0.3em;
+      margin-bottom: 0.3rem;
+    }
+
+    h1 {
+      font-size: 2rem;
+      font-weight: 800;
+      color: #fff;
+    }
+    h1 span { color: var(--danger); }
+
+    .header-actions {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    /* Shared button base */
+    .btn {
+      padding: 0.55rem 1.2rem;
+      border: none;
+      border-radius: 3px;
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-block;
+      transition: opacity 0.2s;
+    }
+    .btn:hover { opacity: 0.8; }
+
+    .btn-primary  { background: var(--accent);  color: #000; font-weight: 700; }
+    .btn-outline  { background: transparent; border: 1px solid var(--border); color: var(--text); }
+    .btn-danger   { background: var(--danger); color: #fff; font-weight: 700; }
+    .btn-warn     { background: var(--warn); color: #000; font-weight: 700; }
+
+    /* ── Section titles ── */
+    .section-title {
+      font-family: var(--mono);
+      font-size: 0.65rem;
+      color: var(--muted);
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      margin-bottom: 1rem;
+    }
+
+    /* ── Video section ── */
+    .video-section {
+      margin-bottom: 3rem;
+    }
+
+    .video-wrapper {
+      background: #000;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    video {
+      width: 100%;
+      display: block;
+      max-height: 540px;
+    }
+
+    .video-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.9rem 1.2rem;
+      background: var(--panel);
+      border-top: 1px solid var(--border);
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .video-filename {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+
+    /* ── Evidence section ── */
+    .evidence-section { margin-bottom: 3rem; }
+
+    .evidence-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1.2rem;
+    }
+
+    .no-evidence {
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      color: var(--muted);
+      padding: 2rem;
+      border: 1px dashed var(--border);
+      border-radius: 4px;
+      text-align: center;
+    }
+
+    /* Grid of person cards */
+    .persons-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 1.5rem;
+    }
+
+    .person-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* top-left corner accent */
+    .person-card::before {
+      content: '';
+      position: absolute;
+      top: -1px; left: -1px;
+      width: 12px; height: 12px;
+      border-top: 2px solid var(--danger);
+      border-left: 2px solid var(--danger);
+    }
+
+    .person-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.8rem 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .person-id-tag {
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      color: var(--danger);
+      letter-spacing: 0.1em;
+    }
+
+    .threat-badge {
+      font-family: var(--mono);
+      font-size: 0.6rem;
+      background: rgba(255,45,85,0.15);
+      border: 1px solid rgba(255,45,85,0.4);
+      color: var(--danger);
+      padding: 0.2rem 0.5rem;
+      border-radius: 2px;
+      letter-spacing: 0.1em;
+    }
+
+    /* Two evidence images side-by-side */
+    .evidence-images {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1px;
+      background: var(--border);
+    }
+
+    .evidence-img-wrap {
+      position: relative;
+      overflow: hidden;
+      background: #000;
+    }
+
+    .evidence-img-wrap img {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    .img-overlay {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      background: linear-gradient(transparent, rgba(0,0,0,0.7));
+      padding: 0.4rem 0.5rem 0.3rem;
+      font-family: var(--mono);
+      font-size: 0.6rem;
+      color: rgba(255,255,255,0.6);
+    }
+
+    .person-card-footer {
+      padding: 0.7rem 1rem;
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    /* ── Exit section ── */
+    .exit-section {
+      border-top: 1px solid var(--border);
+      padding-top: 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .exit-note {
+      font-size: 0.8rem;
+      color: var(--muted);
+      max-width: 420px;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── Header ── -->
+  <header>
+    <div class="header-left">
+      <div class="system-tag">// Analysis Complete</div>
+      <h1>Detection <span>Results</span></h1>
+    </div>
+    <div class="header-actions">
+      <a class="btn btn-outline" href="/process">← Re-process</a>
+      <a class="btn btn-outline" href="/">New Video</a>
+    </div>
+  </header>
+
+  <!-- ── Output Video ── -->
+  <section class="video-section">
+    <div class="section-title">▶ Output Video</div>
+    <div class="video-wrapper">
+      <video controls>
+        <source src="/outputs/{{ output_video }}" type="video/mp4">
+        Your browser does not support the video tag.
+      </video>
+      <div class="video-footer">
+        <span class="video-filename">{{ output_video }}</span>
+        <a class="btn btn-primary" href="/download/video">↓ Download Video</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Evidence ── -->
+  <section class="evidence-section">
+    <div class="evidence-header">
+      <div class="section-title" style="margin-bottom:0">
+        ⚠ Armed Person Evidence
+        {% if evidence %}
+          — {{ evidence | length }} person(s) flagged
+        {% endif %}
+      </div>
+    </div>
+
+    {% if not evidence %}
+      <div class="no-evidence">No armed persons detected in this video.</div>
+    {% else %}
+      <div class="persons-grid">
+        {% for pid, images in evidence.items() %}
+        <div class="person-card">
+          <div class="person-card-header">
+            <span class="person-id-tag">PERSON ID {{ pid }}</span>
+            <span class="threat-badge">ARMED</span>
+          </div>
+
+          <div class="evidence-images">
+            {% for img in images %}
+            <div class="evidence-img-wrap">
+              <img src="/evidence/{{ img }}" alt="Evidence — Person {{ pid }}">
+              <div class="img-overlay">{{ img }}</div>
+            </div>
+            {% endfor %}
+
+            <!-- Placeholder if only 1 image available -->
+            {% if images | length < 2 %}
+            <div class="evidence-img-wrap" style="display:flex;align-items:center;justify-content:center;">
+              <span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);">only 1 frame captured</span>
+            </div>
+            {% endif %}
+          </div>
+
+          <div class="person-card-footer">
+            {% for img in images %}
+            <a class="btn btn-warn" href="/download/evidence/{{ img }}" style="font-size:0.65rem;padding:0.4rem 0.8rem;">
+              ↓ Frame {{ loop.index }}
+            </a>
+            {% endfor %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  </section>
+
+  <!-- ── Exit / Cleanup ── -->
+  <div class="exit-section">
+    <div class="exit-note">
+      Clicking <strong>Exit &amp; Clear</strong> will permanently delete all uploaded videos,
+      processed outputs, and evidence files from disk.
+    </div>
+    <a class="btn btn-danger" href="/exit" onclick="return confirm('Delete all files and reset?')">
+      ✕ Exit &amp; Clear All Data
+    </a>
+  </div>
+
+</body>
+</html>
