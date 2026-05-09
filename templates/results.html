@@ -348,6 +348,78 @@
     {% endif %}
   </section>
 
+  <!-- ── Getaway Vehicle Evidence ── -->
+  <section class="evidence-section">
+    <div class="evidence-header">
+      <div class="section-title" style="margin-bottom:0">
+        🚗 Getaway Vehicle Evidence
+        {% if getaway and (getaway.vehicles or getaway.plates) %}
+          — last captured frames
+        {% endif %}
+      </div>
+    </div>
+
+    {% if not getaway or (not getaway.vehicles and not getaway.plates) %}
+      <div class="no-evidence">No getaway vehicles identified in this video.</div>
+    {% else %}
+      <div class="persons-grid">
+
+        {% if getaway.vehicles %}
+        <div class="person-card" style="grid-column: 1 / -1;">
+          <div class="person-card-header">
+            <span class="person-id-tag" style="color:var(--danger);">GETAWAY VEHICLES</span>
+            <span class="threat-badge">FLAGGED</span>
+          </div>
+
+          <div class="evidence-images" style="grid-template-columns: repeat({{ [getaway.vehicles|length, 4] | min }}, 1fr);">
+            {% for img in getaway.vehicles %}
+            <div class="evidence-img-wrap">
+              <img src="/evidence/{{ img }}" alt="Getaway vehicle">
+              <div class="img-overlay">{{ img }}</div>
+            </div>
+            {% endfor %}
+          </div>
+
+          <div class="person-card-footer">
+            {% for img in getaway.vehicles %}
+            <a class="btn btn-danger" href="/download/evidence/{{ img }}" style="font-size:0.65rem;padding:0.4rem 0.8rem;">
+              ↓ {{ img }}
+            </a>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+
+        {% if getaway.plates %}
+        <div class="person-card" style="grid-column: 1 / -1;">
+          <div class="person-card-header">
+            <span class="person-id-tag" style="color:var(--warn);">LICENSE PLATES</span>
+            <span class="threat-badge" style="background:rgba(255,180,0,0.15);border-color:rgba(255,180,0,0.4);color:var(--warn);">CAPTURED</span>
+          </div>
+
+          <div class="evidence-images" style="grid-template-columns: repeat({{ [getaway.plates|length, 2] | min }}, 1fr);">
+            {% for img in getaway.plates %}
+            <div class="evidence-img-wrap">
+              <img src="/evidence/{{ img }}" alt="Getaway plate">
+              <div class="img-overlay">{{ img }}</div>
+            </div>
+            {% endfor %}
+          </div>
+
+          <div class="person-card-footer">
+            {% for img in getaway.plates %}
+            <a class="btn btn-warn" href="/download/evidence/{{ img }}" style="font-size:0.65rem;padding:0.4rem 0.8rem;">
+              ↓ {{ img }}
+            </a>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+
+      </div>
+    {% endif %}
+  </section>
+
   <!-- ── Exit / Cleanup ── -->
   <div class="exit-section">
     <div class="exit-note">

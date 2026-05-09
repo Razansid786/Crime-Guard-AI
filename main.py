@@ -1,5 +1,6 @@
 import os
 import cv2
+import shutil
 import time
 from ultralytics import YOLO
 
@@ -99,6 +100,14 @@ stats = {
 }
 
 start_time = time.time()
+
+# =========================
+# PERSISTENT ARMED-PERSON TRACKING
+# Once a person is seen holding a gun, their track ID is
+# remembered forever so their box stays red in all future frames.
+# =========================
+
+armed_person_ids = set()
 
 # =========================
 # MAIN LOOP
@@ -224,39 +233,59 @@ while True:
 
 
     # =========================
-    # PLATE DETECTION
+    # PLATE DETECTION (runs ONLY on detected vehicle crops)
+    # Instead of scanning the full frame, we crop each vehicle
+    # region, run the plate model on that crop, and remap the
+    # plate coordinates back to the full frame.
     # =========================
 
     plate_boxes = []
 
-    if vehicle_boxes:
-        plate_results = plate_model(frame, conf=0.4, verbose=False)
+    for vx1, vy1, vx2, vy2 in vehicle_boxes:
+        # Add padding around the vehicle crop so edge-plates aren't clipped
+        pad = 10
+        crop_x1 = max(0, vx1 - pad)
+        crop_y1 = max(0, vy1 - pad)
+        crop_x2 = min(width, vx2 + pad)
+        crop_y2 = min(height, vy2 + pad)
+
+        vehicle_crop = frame[crop_y1:crop_y2, crop_x1:crop_x2]
+
+        if vehicle_crop.size == 0:
+            continue
+
+        plate_results = plate_model(vehicle_crop, conf=0.4, verbose=False)
 
         if plate_results[0].boxes is not None:
-
             for box in plate_results[0].boxes:
+                # Coordinates are relative to the crop; remap to full frame
+                px1, py1, px2, py2 = map(int, box.xyxy[0])
+                px1 += crop_x1
+                py1 += crop_y1
+                px2 += crop_x1
+                py2 += crop_y1
 
-                x1, y1, x2, y2 = map(int, box.xyxy[0])
-                plate_boxes.append([x1, y1, x2, y2])
+                plate_boxes.append([px1, py1, px2, py2])
 
-                cv2.rectangle(annotated, (x1, y1), (x2, y2), (0, 255, 255), 2)
+                cv2.rectangle(annotated, (px1, py1), (px2, py2), (0, 255, 255), 2)
+                cv2.putText(
+                    annotated,
+                    "Plate",
+                    (px1, py1 - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.6,
+                    (0, 255, 255),
+                    2
+                )
 
-        stats["plates_detected"] += len(plate_boxes)
-        for x1, y1, x2, y2 in plate_boxes:
-            cv2.putText(
-                        annotated,
-                        "Plate",
-                        (x1, y1 - 10),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        0.6,
-                        (0, 255, 255),
-                        2
-                    )
+    stats["plates_detected"] += len(plate_boxes)
 
 
     # =========================
-    # CHECK PERSON HOLDING GUN
-    # Now annotates with Track ID for identity tracking
+    # CHECK PERSON HOLDING GUN  (with persistence)
+    # If a person is seen holding a gun even once, their track ID
+    # is added to armed_person_ids and they stay flagged (red box)
+    # for the rest of the video.
     # =========================
 
     for idx, pbox in enumerate(person_boxes):
@@ -264,45 +293,58 @@ while True:
         px1, py1, px2, py2 = pbox
         track_id = person_track_ids[idx]
 
-        holding_gun = False
-
+        # Check if this person is holding a gun RIGHT NOW
+        holding_gun_now = False
         for gun_box in gun_boxes:
-
             if calculate_iou(pbox, gun_box) > 0.05:
-                holding_gun = True
+                holding_gun_now = True
                 break
 
-        if holding_gun:
-            stats["armed_persons"] += 1
+        # If detected now, remember this person permanently
+        if holding_gun_now:
+            armed_person_ids.add(track_id)
+
+        # A person is "armed" if they were EVER seen with a gun
+        is_armed = track_id in armed_person_ids
+
+        if is_armed:
             frame_has_threat = True
 
-        color = (0, 0, 255) if holding_gun else (0, 255, 0)
+        # Only count a NEW armed-person event the first time the
+        # IoU fires (not on every subsequent frame of persistence)
+        if holding_gun_now:
+            stats["armed_persons"] += 1
+
+        # Red if armed (current or past), green otherwise
+        color = (0, 0, 255) if is_armed else (0, 255, 0)
 
         cv2.rectangle(annotated, (px1, py1), (px2, py2), color, 3)
 
         # Label includes track ID so each person is identifiable across frames
         label = f"Person {track_id}"
+        if is_armed:
+            label += " [ARMED]"
 
-        if holding_gun:
-            label += " (Gun)"
-
+        # White text for normal, bright red for armed
+        text_color = (0, 0, 255) if is_armed else (255, 255, 255)
         cv2.putText(
             annotated,
             label,
             (px1, py1 - 10),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.7,
-            (255, 255, 255),
+            text_color,
             2
         )
 
 
         # =========================
         # SAVE EVIDENCE
-        # Filenames now include track ID for easy cross-frame linking
+        # Evidence is saved only when the gun is actively detected
+        # this frame (not every persistence frame).
         # =========================
 
-        if holding_gun:
+        if holding_gun_now:
 
             person_crop = frame[py1:py2, px1:px2]
 
@@ -347,6 +389,65 @@ while True:
     # Count frames where any threat was present
     if frame_has_threat:
         stats["threat_frames"] += 1
+
+    # =========================
+    # GETAWAY VEHICLE MARKING
+    # For each armed person (current or persistent), find the
+    # vehicle they overlap with RIGHT NOW and mark it "GETAWAY".
+    # This recalculates every frame — only the latest overlap
+    # counts, so old vehicles go back to normal.
+    # =========================
+
+    getaway_vehicle_indices = set()
+
+    for idx, pbox in enumerate(person_boxes):
+        track_id = person_track_ids[idx]
+        if track_id not in armed_person_ids:
+            continue
+        for v_idx, vehicle_box in enumerate(vehicle_boxes):
+            if calculate_iou(pbox, vehicle_box) > 0.1:
+                getaway_vehicle_indices.add(v_idx)
+
+    for v_idx in getaway_vehicle_indices:
+        gx1, gy1, gx2, gy2 = vehicle_boxes[v_idx]
+        # Thick red border drawn over the existing blue one
+        cv2.rectangle(annotated, (gx1, gy1), (gx2, gy2), (0, 0, 255), 5)
+        # Black background for label readability
+        label_text = "GETAWAY"
+        (tw, th), _ = cv2.getTextSize(label_text, cv2.FONT_HERSHEY_SIMPLEX, 0.8, 2)
+        cv2.rectangle(annotated, (gx1, gy1 - th - 14), (gx1 + tw + 8, gy1), (0, 0, 0), -1)
+        cv2.putText(
+            annotated,
+            label_text,
+            (gx1 + 4, gy1 - 8),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.8,
+            (0, 0, 255),
+            2
+        )
+
+        # ── Save getaway vehicle crop to evidence ──
+        getaway_crop = frame[gy1:gy2, gx1:gx2]
+        if getaway_crop.size > 0:
+            cv2.imwrite(
+                os.path.join(EVIDENCE_DIR, f"getaway_frame{frame_id}_v{v_idx}.jpg"),
+                getaway_crop
+            )
+            stats["evidence_saved"] += 1
+            print(f"  🚗 GETAWAY — Frame {frame_id} | Vehicle saved to evidence")
+
+            # Also save any plate found inside this getaway vehicle
+            for plate_box in plate_boxes:
+                if calculate_iou([gx1, gy1, gx2, gy2], plate_box) > 0.2:
+                    ppx1, ppy1, ppx2, ppy2 = plate_box
+                    plate_crop = frame[ppy1:ppy2, ppx1:ppx2]
+                    if plate_crop.size > 0:
+                        cv2.imwrite(
+                            os.path.join(EVIDENCE_DIR, f"getaway_plate_frame{frame_id}_v{v_idx}.jpg"),
+                            plate_crop
+                        )
+                        stats["evidence_saved"] += 1
+                        print(f"  🚗 PLATE   — Frame {frame_id} | Getaway plate saved")
 
     # =========================
     # ON-SCREEN HUD OVERLAY
@@ -419,10 +520,11 @@ print(f"  File size     : {file_size:.2f} MB")
 
 # Use ffprobe if available for ground truth
 print()
-print("FFPROBE (ground truth — most reliable):")
-ret = os.system(f'ffprobe -v error -select_streams v:0 -show_entries stream=nb_frames,r_frame_rate,duration -of default=noprint_wrappers=1 "{OUTPUT_VIDEO}"')
-if ret != 0:
-    print("  ffprobe not available")
+if shutil.which('ffprobe'):
+    print("FFPROBE (ground truth — most reliable):")
+    os.system(f'ffprobe -v error -select_streams v:0 -show_entries stream=nb_frames,r_frame_rate,duration -of default=noprint_wrappers=1 "{OUTPUT_VIDEO}"')
+else:
+    print("FFPROBE: skipped (ffprobe not installed — install FFmpeg to enable)")
 
 print("=" * 60)
 

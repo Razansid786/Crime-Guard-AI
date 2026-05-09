@@ -83,6 +83,10 @@ def results():
     # Group evidence images by person ID, pick 2 per ID sorted by frame number
     person_evidence = defaultdict(list)
 
+    # Getaway vehicle + plate evidence (separate lists)
+    getaway_vehicles = []   # (frame_num, filename)
+    getaway_plates   = []   # (frame_num, filename)
+
     for fname in os.listdir(EVIDENCE_FOLDER):
         # Match only person crops: person_id<N>_frame<M>.jpg
         match = re.match(r"person_id(\d+)_frame(\d+)\.jpg", fname)
@@ -90,6 +94,19 @@ def results():
             pid        = int(match.group(1))
             frame_num  = int(match.group(2))
             person_evidence[pid].append((frame_num, fname))
+            continue
+
+        # Match getaway plate crops: getaway_plate_frame<N>_v<M>.jpg
+        match_gp = re.match(r"getaway_plate_frame(\d+)_v\d+\.jpg", fname)
+        if match_gp:
+            getaway_plates.append((int(match_gp.group(1)), fname))
+            continue
+
+        # Match getaway vehicle crops: getaway_frame<N>_v<M>.jpg
+        match_gv = re.match(r"getaway_frame(\d+)_v\d+\.jpg", fname)
+        if match_gv:
+            getaway_vehicles.append((int(match_gv.group(1)), fname))
+            continue
 
     # Sort by frame number and keep only the first 2 images per person
     evidence_display = {}
@@ -97,10 +114,20 @@ def results():
         items.sort(key=lambda x: x[0])
         evidence_display[pid] = [fname for _, fname in items[:2]]
 
+    # Sort getaway evidence by frame number, keep only the LAST few for display
+    getaway_vehicles.sort(key=lambda x: x[0])
+    getaway_plates.sort(key=lambda x: x[0])
+
+    getaway_display = {
+        "vehicles": [fname for _, fname in getaway_vehicles[-4:]],   # last 4
+        "plates":   [fname for _, fname in getaway_plates[-2:]],     # last 2
+    }
+
     return render_template(
         "results.html",
         output_video   = current_video["output"],
-        evidence       = evidence_display,   # {person_id: [fname1, fname2]}
+        evidence       = evidence_display,       # {person_id: [fname1, fname2]}
+        getaway        = getaway_display,         # {vehicles: [...], plates: [...]}
     )
 
 
