@@ -178,6 +178,10 @@ while True:
 
     gun_boxes = []
 
+    frame_area = width * height
+    MAX_GUN_AREA_RATIO = 0.10   # gun bbox can't exceed 10% of frame
+    MIN_GUN_AREA_PX    = 100    # ignore tiny noise detections
+
     gun_results = gun_model(frame, conf=0.4, verbose=False)
 
     if gun_results[0].boxes is not None:
@@ -185,6 +189,14 @@ while True:
         for box in gun_results[0].boxes:
 
             x1, y1, x2, y2 = map(int, box.xyxy[0])
+            box_area = (x2 - x1) * (y2 - y1)
+
+            # Filter out false positives: huge boxes and tiny noise
+            if box_area > frame_area * MAX_GUN_AREA_RATIO:
+                continue
+            if box_area < MIN_GUN_AREA_PX:
+                continue
+
             gun_boxes.append([x1, y1, x2, y2])
 
             cv2.rectangle(annotated, (x1, y1), (x2, y2), (0, 0, 255), 5)
